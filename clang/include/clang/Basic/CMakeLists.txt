@@ -231,3 +231,12 @@ clang_tablegen(riscv_andes_vector_builtin_cg.inc -gen-riscv-andes-vector-builtin
 clang_tablegen(riscv_andes_vector_builtin_sema.inc -gen-riscv-andes-vector-builtin-sema
   SOURCE riscv_andes_vector.td
   TARGET ClangRISCVAndesVectorBuiltinSema)
+clang_tablegen(riscv_memorable_builtins.inc -gen-riscv-sifive-vector-builtins
+  SOURCE riscv_memorable.td
+  TARGET ClangRISCVMemorableBuiltins)
+clang_tablegen(riscv_memorable_builtin_cg.inc -gen-riscv-sifive-vector-builtin-codegen
+  SOURCE riscv_memorable.td
+  TARGET ClangRISCVMemorableBuiltinCG)
+clang_tablegen(riscv_memorable_builtin_sema.inc -gen-riscv-sifive-vector-builtin-sema
+  SOURCE riscv_memorable.td
+  TARGET ClangRISCVMemorableBuiltinSema)
