@@ -1,0 +1,12 @@
+2.201724e-02 cmul.ll
+3.010273e-02 hidden_state.ll
+2.087021e-02 store_int4_e4m3.ll
+3.776002e-02 store_int4_e4m3_bare.ll
+2.117777e-02 store_int4_e8m0.ll
+3.951216e-02 store_int4_e8m0_bare.ll
+2.125788e-02 store_int4_e8m3.ll
+3.980470e-02 store_int4_e8m3_bare.ll
+2.628994e-02 tile_load.ll
+1.707435e-02 tile_store.ll
+1.700902e-02 vexp2diff_fx.ll
+1.669884e-02 vexp2diff_vv.ll
