@@ -1,0 +1,11 @@
+3.970098e-02 cmul.s
+3.998590e-02 matrix_multiply_drain.s
+3.362346e-02 store_int4_e4m3.s
+3.586340e-02 store_int4_e8m0.s
+3.288698e-02 store_int4_e8m3.s
+3.461432e-02 store_transposed.s
+2.834940e-02 tile_load.s
+2.851868e-02 tile_store.s
+2.691245e-02 vappend.s
+2.566242e-02 vexp2diff_fx.s
+2.216768e-02 vexp2diff_vv.s

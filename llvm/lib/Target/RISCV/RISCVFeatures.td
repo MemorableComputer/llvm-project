@@ -1211,6 +1211,14 @@ def HasVendorXTHeadVdot : Predicate<"Subtarget->hasVendorXTHeadVdot()">,
                           AssemblerPredicate<(all_of FeatureVendorXTHeadVdot),
                               "'XTHeadVdot' (T-Head Vector Extensions for Dot)">;
 
+// Memorable Extensions
+
+def FeatureVendorXMemorable
+    : RISCVExtension<1, 0, "Memorable decode-engine custom vector ops">;
+def HasVendorXMemorable : Predicate<"Subtarget->hasVendorXMemorable()">,
+                        AssemblerPredicate<(all_of FeatureVendorXMemorable),
+                            "'Xmemorable' (Memorable decode-engine custom vector ops)">;
+
 // SiFive Extensions
 
 def FeatureVendorXSfvcp

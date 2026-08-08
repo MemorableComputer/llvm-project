@@ -96,6 +96,18 @@ static const RVVIntrinsicRecord RVAndesVectorIntrinsicRecords[] = {
 #undef DECL_INTRINSIC_RECORDS
 };
 
+static const PrototypeDescriptor RVMemorableVectorSignatureTable[] = {
+#define DECL_SIGNATURE_TABLE
+#include "clang/Basic/riscv_memorable_builtin_sema.inc"
+#undef DECL_SIGNATURE_TABLE
+};
+
+static const RVVIntrinsicRecord RVMemorableVectorIntrinsicRecords[] = {
+#define DECL_INTRINSIC_RECORDS
+#include "clang/Basic/riscv_memorable_builtin_sema.inc"
+#undef DECL_INTRINSIC_RECORDS
+};
+
 // Get subsequence of signature table.
 static ArrayRef<PrototypeDescriptor>
 ProtoSeq2ArrayRef(IntrinsicKind K, uint16_t Index, uint8_t Length) {
