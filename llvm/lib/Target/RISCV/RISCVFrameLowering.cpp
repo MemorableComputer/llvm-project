@@ -32,7 +32,49 @@
 
 using namespace llvm;
 
-static Align getABIStackAlignment(RISCVABI::ABI ABI) {
+// XMemorable (the Memorable decode engine): the size of ONE vector-data-bank
+// word, which is also the size of one vector register.
+//
+// Both of the engine's vector-memory legs are single-bank-word by
+// construction: the load FU writes the addressed bank row's 512 bits straight
+// into vd (rs1[5:0] never enters the path at all), and the store FU places its
+// source words at rs1[5:0] INSIDE one word and drops everything past byte 63
+// through an out-of-range part-select.  An access whose payload crosses a word
+// boundary therefore reads/writes the wrong bytes, so ANY vector-memory access
+// must be 64-byte aligned; the RTL traps a crossing one at dispatch (see
+// dual_dispatch.sv's bank-word granularity guard).
+//
+// 64 is the right number for EVERY LMUL, not LMUL * 64: the engine's beat
+// sequencer cracks a grouped access into one-register beats and steps the
+// scalar base by exactly one register (64 B) per beat, so a group is legal iff
+// its base is word-aligned, whatever m1/m2/m4/m8 it is.  The value is
+// simultaneously VectorLength(16) * ElementWidth(32) / 8 -- the bank word --
+// and VLEN/8 at the pinned zvl512b -- one vector register.  That identity is
+// what makes the RVV section's existing per-object granularity (multiples of
+// RVVBytesPerBlock, scaled by vscale, i.e. one whole vector register) already
+// sufficient once the section BASE is aligned.
+static constexpr unsigned XMemorableBankWordBytes = 64;
+
+static Align getABIStackAlignment(const RISCVSubtarget &STI) {
+  // XMemorable: every compiler-placed vector memory object -- a register
+  // allocator spill slot, a scalable-vector local, an RVV callee-saved slot --
+  // lives on the stack, so the stack itself has to be bank-word aligned or the
+  // objects on it cannot be.
+  //
+  // This is deliberately the ABI alignment rather than "leave it at 16 and let
+  // the over-aligned RVV section ask for DYNAMIC stack realignment": RVV spill
+  // slots only come into existence during register allocation, so an alignment
+  // that first appears in processFunctionBeforeFrameFinalized would flip
+  // hasFP()/getReservedRegs() behind the allocator's back -- exactly the
+  // before-RA/after-RA inconsistency hasRVVFrameObject()'s comment below
+  // describes.  Raising the ABI alignment keeps the decision static (a
+  // subtarget property, fixed before any pass runs), keeps MaxAlignment ==
+  // StackAlignment so nothing ever realigns, and costs no frame pointer and no
+  // prologue `andi sp, sp, -64`.  The engine's crt0 hands main a 64-byte
+  // aligned _stack_top, so the incoming SP already satisfies it.
+  if (STI.hasVendorXMemorable())
+    return Align(XMemorableBankWordBytes);
+  RISCVABI::ABI ABI = STI.getTargetABI();
   if (ABI == RISCVABI::ABI_ILP32E)
     return Align(4);
   if (ABI == RISCVABI::ABI_LP64E)
@@ -41,10 +83,9 @@ static Align getABIStackAlignment(RISCVABI::ABI ABI) {
 }
 
 RISCVFrameLowering::RISCVFrameLowering(const RISCVSubtarget &STI)
-    : TargetFrameLowering(
-          StackGrowsDown, getABIStackAlignment(STI.getTargetABI()),
-          /*LocalAreaOffset=*/0,
-          /*TransientStackAlignment=*/getABIStackAlignment(STI.getTargetABI())),
+    : TargetFrameLowering(StackGrowsDown, getABIStackAlignment(STI),
+                          /*LocalAreaOffset=*/0,
+                          /*TransientStackAlignment=*/getABIStackAlignment(STI)),
       STI(STI) {}
 
 // The register used to hold the frame pointer.
@@ -1647,6 +1688,21 @@ RISCVFrameLowering::assignRVVStackObjectOffsets(MachineFunction &MF) const {
   // The minimum alignment is 16 bytes.
   Align RVVStackAlign(16);
   const auto &ST = MF.getSubtarget<RISCVSubtarget>();
+
+  // XMemorable: the RVV section's BASE must be bank-word aligned as well.  The
+  // offsets handed out inside the section below are already whole-vector-
+  // register multiples (RVVBytesPerBlock scaled by vscale), so the base is the
+  // only thing that can misalign a spill slot -- and at 16 it did: an m4 group
+  // spilled to a section based 32 bytes into a bank word, and the store's
+  // second half was silently dropped by the store FU's word placement.
+  //
+  // Note this raises only the SECTION alignment, never the per-object one:
+  // the loop below aligns a vscale-RELATIVE offset by a BYTE alignment, so a
+  // 64-byte per-object request would round each object up to 64 * vscale =
+  // 512 real bytes (an 8x frame for an m1 spill) while buying nothing the
+  // section base does not already give.
+  if (ST.hasVendorXMemorable())
+    RVVStackAlign = Align(XMemorableBankWordBytes);
 
   if (!ST.hasVInstructions()) {
     assert(ObjectsToAllocate.empty() &&

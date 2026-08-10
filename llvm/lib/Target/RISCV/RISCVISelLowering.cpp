@@ -1992,6 +1992,71 @@ bool RISCVTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
   switch (Intrinsic) {
   default:
     return false;
+  case Intrinsic::riscv_memorable_int4_quantize_e8m0:
+  case Intrinsic::riscv_memorable_int4_quantize_e4m3:
+  case Intrinsic::riscv_memorable_int4_quantize_e8m3: {
+    // Xmemorable store.int4.<fmt> (isa/vector.yaml, the `fused_store`
+    // trio): void (<vty> value, ptr data, ptr scale, iN vl).
+    //
+    // Giving this intrinsic a MachineMemOperand is the whole point of the
+    // hook. Without one it reaches MI level as an MMO-less store, so
+    // MachineInstr::mayAlias answers "may alias" against EVERY other
+    // memory operation and no scheduler may ever move a load across it --
+    // measured as the entire serial-vs-pipelined gap on the softmax loop
+    // (a next-query tile.load cannot be hoisted above the current query's
+    // quantize store, even though the two address disjoint banks).
+    //
+    // Footprint, from the ISS (model/vector/vector_engine.h,
+    // VectorEngine::StoreInt4 -- the authority, not the RTL comments):
+    // the op quantizes vl/16 source registers into vl/16 ADJACENT 8-byte
+    // micro-blocks (`kMicroBlockBytes`, 16 int4 packed two per byte)
+    // starting at the data pointer, stride 8. vl is VLMAX in every
+    // wrapper, so the footprint is 8 bytes per LMUL, contiguous:
+    //
+    //   LMUL 1 -> 8 B, LMUL 2 -> 16 B, LMUL 4 -> 32 B, LMUL 8 -> 64 B
+    //
+    // LMUL comes from the SOURCE VECTOR TYPE rather than the vl operand:
+    // a smaller runtime vl only writes FEWER blocks, so the type-derived
+    // size is the exact bound and never an under-claim (an under-claimed
+    // store footprint would be a miscompile; an over-claim only costs
+    // scheduling freedom).
+    //
+    // DELIBERATE ASYMMETRY -- the mirror scale write is NOT claimed here.
+    // Each block also writes its block-scale code into the separate SCALE
+    // bank, at an address DERIVED from the block's data address (same
+    // 64-byte word, byte slot = block index * scale bytes; see StoreInt4
+    // and kBankWordMask). That bank is a distinct memory the IR cannot
+    // name -- no IR object lives there and the `scale` pointer argument is
+    // hardware routing that kernels pass as 0 -- so it must NOT appear in
+    // this MMO. It stays covered by the intrinsic's own
+    // `memory(argmem: write, inaccessiblemem: write)` attribute, and at MI
+    // level by the fact that every consumer of the scale bank
+    // (matrix.multiply_drain) is an MMO-less unknown-memory instruction,
+    // which mayAlias treats conservatively against everything. Claiming
+    // the scale write here would name the WRONG bytes (the derived address
+    // aliases data addresses numerically while addressing another bank),
+    // which is strictly worse than not claiming it.
+    auto *SrcTy = cast<VectorType>(I.getArgOperand(0)->getType());
+    unsigned LMUL = SrcTy->getPrimitiveSizeInBits().getKnownMinValue() /
+                    RISCV::RVVBitsPerBlock;
+    unsigned Bytes = LMUL * 8;
+    Info.opc = ISD::INTRINSIC_VOID;
+    // ptrVal is the DATA-bank pointer (operand 1). Operand 2 (`scale`) is
+    // not an address at all -- see above.
+    Info.ptrVal = I.getArgOperand(1);
+    Info.offset = 0;
+    Info.memVT = EVT::getVectorVT(I.getContext(), MVT::i8, Bytes);
+    // The micro-block granularity (8 B) is the only alignment the write
+    // actually requires: the ISS derives a block's scale slot from
+    // (block address >> 3), so a legal LMUL=1 store may sit at ANY 8-byte
+    // offset inside a 64-byte bank row. Claiming the bank-row alignment
+    // would therefore be a false statement about legal programs;
+    // under-claiming is free (alignment plays no part in MI-level alias
+    // disambiguation, which is what this MMO exists for).
+    Info.align = Align(8);
+    Info.flags |= MachineMemOperand::MOStore;
+    return true;
+  }
   case Intrinsic::riscv_masked_atomicrmw_xchg:
   case Intrinsic::riscv_masked_atomicrmw_add:
   case Intrinsic::riscv_masked_atomicrmw_sub:
