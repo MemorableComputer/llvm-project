@@ -723,6 +723,8 @@ def VTYPE  : RISCVReg<0, "vtype">;
 def VL     : RISCVReg<0, "vl">;
 def VXSAT  : RISCVReg<0, "vxsat">;
 def VXRM   : RISCVReg<0, "vxrm">;
+def MACC   : RISCVReg<0, "macc">;   // matrix accumulator (spec §3.3)
+def TBUF   : RISCVReg<0, "tbuf">;   // transpose buffer  (spec §3.3)
 let isConstant = true in
 def VLENB  : RISCVReg<0, "vlenb">,
              DwarfRegNum<[!add(4096, SysRegVLENB.Encoding)]>;
