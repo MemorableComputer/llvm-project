@@ -1384,6 +1384,9 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
 
     // Andes Vector builtins are handled from here.
 #include "clang/Basic/riscv_andes_vector_builtin_cg.inc"
+
+    // Memorable builtins are handled from here.
+#include "clang/Basic/riscv_memorable_builtin_cg.inc"
   }
 
   assert(ID != Intrinsic::not_intrinsic);

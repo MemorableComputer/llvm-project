@@ -106,6 +106,12 @@ def GENERIC : RISCVTuneProcessorModel<"generic", NoSchedModel>, GenericTuneInfo;
 def GENERIC_OOO : RISCVTuneProcessorModel<"generic-ooo", GenericOOOModel>,
                   GenericTuneInfo;
 
+// Tune CPU for the xmemorable node's 3-lane in-order dispatch (the
+// XMemorable sched model). Tune-only: features still come from -march /
+// -mattr (+xmemorable etc.), matching how the kernels are built.
+def XMEMORABLE_NODE : RISCVTuneProcessorModel<"xmemorable-node",
+                                              XMemorableModel>;
+
 def MIPS_P8700 : RISCVProcessorModel<"mips-p8700",
                                      MIPSP8700Model,
                                      [Feature64Bit,
